@@ -40,10 +40,10 @@ func main() {
 	time.Sleep(time.Hour)
 }
 
-func consumeQueue(queueName tinyqueue.QueueName, dun *tinyqueue.TinyQueue) {
+func consumeQueue(queueName tinyqueue.QueueName, queue *tinyqueue.TinyQueue) {
 	var consumeCh = make(chan tinyqueue.Message)
 	var deliverCh = make(chan tinyqueue.DeliveryMessage)
-	if err := dun.Consume(queueName, consumeCh, deliverCh); err != nil {
+	if err := queue.Consume(queueName, consumeCh, deliverCh); err != nil {
 		fmt.Println("Something going wrong, err: " + err.Error())
 		return
 	}

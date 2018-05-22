@@ -138,6 +138,12 @@ func (d *TinyQueue) Bind(exchangeName ExchangeName, queueName QueueName, routing
 
 	expression := fmt.Sprintf("^%s$", routingKey)
 	rxp, err := regexp.Compile(expression)
+	for bindRegexp, queue := range exchange.bindings {
+		if bindRegexp.String() == rxp.String() && queue == queueName {
+			return errors.New(fmt.Sprintf("Bind on '%s' for '%s' with routing-key '%s' already exists", exchangeName, queueName, routingKey))
+		}
+	}
+
 	exchange.bindings[rxp] = queueName
 	return nil
 }
