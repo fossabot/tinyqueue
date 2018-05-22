@@ -5,6 +5,7 @@ import (
 	"time"
 	"reflect"
 	"github.com/valinurovam/tinyqueue"
+	"context"
 )
 
 func main() {
@@ -29,8 +30,9 @@ func main() {
 			tinyQueue.SendMessage("test_exchange_2", tinyqueue.Message{Body: "message should be skipped", RoutingKey: "test3"})
 			tinyQueue.SendMessage("test_exchange_2", tinyqueue.Message{Body: "message for test_queue_3", RoutingKey: "test3_foo"})
 			tinyQueue.SendMessage("test_exchange_2", tinyqueue.Message{Body: "message for test_queue_3", RoutingKey: "test3_bar_foo"})
-			time.Sleep(100 * time.Millisecond)
+			//time.Sleep(100 * time.Millisecond)
 		}
+
 	}()
 
 	go consumeQueue("test_queue_1", tinyQueue)
@@ -41,20 +43,24 @@ func main() {
 }
 
 func consumeQueue(queueName tinyqueue.QueueName, queue *tinyqueue.TinyQueue) {
-	var consumeCh = make(chan tinyqueue.Message)
-	var deliverCh = make(chan tinyqueue.DeliveryMessage)
-	if err := queue.Consume(queueName, consumeCh, deliverCh); err != nil {
+	var consumer *tinyqueue.Consumer
+	var err error
+
+	if consumer, err = queue.Consume(queueName); err != nil {
 		fmt.Println("Something going wrong, err: " + err.Error())
 		return
 	}
-	for message := range consumeCh {
+
+	for {
+		message, _ := consumer.Read(context.Background())
+
 		switch message.Body.(type) {
 		case func():
 			reflect.ValueOf(message.Body).Call([]reflect.Value{})
 		default:
 			fmt.Println(message)
 		}
-		deliverCh <- message.Ack()
 
+		consumer.Deliver(message.Ack())
 	}
 }

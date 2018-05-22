@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 	"regexp"
+	"context"
 )
 
 const (
@@ -27,6 +28,11 @@ type Message struct {
 type DeliveryMessage struct {
 	id     uint64
 	status uint8
+}
+
+type Consumer struct {
+	consumeCh chan Message
+	deliverCh chan DeliveryMessage
 }
 
 func (m Message) Ack() DeliveryMessage {
@@ -196,10 +202,15 @@ func (d *TinyQueue) routeMessages(e *Exchange) {
 	}
 }
 
-func (d *TinyQueue) Consume(queueName QueueName, messages chan Message, delivery chan DeliveryMessage) (err error) {
+func (d *TinyQueue) Consume(queueName QueueName) (consumer *Consumer, err error) {
 	queue, err := d.getQueue(queueName)
 	if err != nil {
 		return
+	}
+
+	consumer = &Consumer{
+		make(chan Message),
+		make(chan DeliveryMessage),
 	}
 
 	go func(channel chan Message) {
@@ -216,7 +227,7 @@ func (d *TinyQueue) Consume(queueName QueueName, messages chan Message, delivery
 				time.Sleep(time.Millisecond)
 			}
 		}
-	}(messages)
+	}(consumer.consumeCh)
 
 	go func(channel chan DeliveryMessage) {
 		var deliveryMessage DeliveryMessage
@@ -232,7 +243,20 @@ func (d *TinyQueue) Consume(queueName QueueName, messages chan Message, delivery
 			}
 			queue.quMu.Unlock()
 		}
-	}(delivery)
+	}(consumer.deliverCh)
 
-	return nil
+	return
+}
+
+func (consumer *Consumer) Read(ctx context.Context) (message *Message, err error) {
+	select {
+	case message := <-consumer.consumeCh:
+		return &message, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (consumer *Consumer) Deliver(dmsg DeliveryMessage) {
+	consumer.deliverCh <- dmsg
 }

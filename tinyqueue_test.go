@@ -154,9 +154,10 @@ func TestTinyQueue_Consume(t *testing.T) {
 		queue.SendMessage("any", message)
 	}
 
-	var consumeCh = make(chan tinyqueue.Message)
-	var deliverCh = make(chan tinyqueue.DeliveryMessage)
-	if err := queue.Consume("any", consumeCh, deliverCh); err != nil {
+	var consumer *tinyqueue.Consumer
+	var err error
+
+	if consumer, err = queue.Consume("any"); err != nil {
 		t.Error(err)
 	}
 
@@ -167,18 +168,13 @@ func TestTinyQueue_Consume(t *testing.T) {
 	var consumedMessages []tinyqueue.Message
 
 	for {
-		leave := false
-		select {
-		case message := <-consumeCh:
-			consumedMessages = append(consumedMessages, message)
-			deliverCh <- message.Ack()
-		case <-ctx.Done():
-			leave = true
-		}
-
-		if leave {
+		var message *tinyqueue.Message
+		if message, err = consumer.Read(ctx); err != nil {
 			break
 		}
+
+		consumedMessages = append(consumedMessages, *message)
+		consumer.Deliver(message.Ack())
 	}
 
 	if len(consumedMessages) != len(messages) {
